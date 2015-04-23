@@ -13,7 +13,8 @@ if [ -z "$proj" ]; then
   sqlite3 $db 'select proj from badchannel group by proj' |tr '\n' ' ' 
   echo " [Ctrl+C to quit]"
   echo -n "> "
-  proj=$(read)
+  read proj
+  echo $proj
 fi
 
 findIncomplete $db $proj

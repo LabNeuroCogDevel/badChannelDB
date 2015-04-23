@@ -206,11 +206,14 @@ function findIncomplete {
     fif=$(find -L $rawdir -iname "*_run${r}_*raw.fif" -or -iname "*_${r}*raw.fif" | sed 1q)
     bcf=$(dirname $bcpat)/${proj}_${id}_${date}_${r}_badchannels.txt
 
-    [ -n "$newbrowser" ] && \
-      mne_browse_raw --raw $fif --highpass 1  --lowpass 100 & && (sleep 30; echo "\n\n\n[close gedit when done]\n") &
+    [ -n "$newbrowser" ] && mne_browse_raw --raw $fif --highpass 1  --lowpass 100 &
 
     gedit $bcf &
     pid=$!
+
+    # mne spams the screen a lot
+    #  send a reminder every minute to close gedit
+    (while kill -0 $pid 2>/dev/null; do echo -e "\n\n\n[close gedit when done]\n"; sleep 60; done) &
 
     echo " $proj $id $date $r "
     echo "   $fif"
@@ -220,13 +223,13 @@ function findIncomplete {
 
     # update db when gedit is closed
     wait $pid
-    updateOrAddDir $db $d
+    updateOrAddDir $db $rawdir
 
     # prompt new choices
     echo
     echo "[n=new browser, enter continue, Ctrl+C to quit] "
     echo -n "continue? "
-    newbrowser=$(read)
+    read newbrowser
   done
   
 }
