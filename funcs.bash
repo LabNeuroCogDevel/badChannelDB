@@ -1,4 +1,16 @@
+#####
+#
+#  * pick an incomplete run
+#  * start mne_raw, open gedit
+#  * update table
+##
 
+# NOTES:
+# * there are 3 MEG projects with different bad channel directories
+#  - WM    originally in /data/Luna1/Natalie/badchannels/*bad*.txt
+#  - Clock               /data/Luna1/MultiModal/Clock/*/MEG/*bad*.txt
+#  - Rest                /data/Luna1/MultiModal/MEG_Raw/*/*/*bad*.txt
+#
 
 # exists returns success, failure otherwise
 function checkexists {
@@ -169,7 +181,52 @@ function updateOrAddDir {
                        ('$doneruns','$missruns',$complete) where rowid == $rowid"
  done
 
+}
 
+function findIncomplete {
+  db=$1; [ -z "$db" -o ! -r "$db" ] && echo "findIncomplete needs a database!" >&2 && return 1
+  proj=$2; [ -z "$proj"  ] && echo "findIncomplete needs a project!" >&2 && return 1
 
- 
+  res=($(sqlite3 -separator ' ' $db \
+           "select id,date,missruns,rawdir,bcpat from badchannel where complete==0 and proj like '$proj' order by date limit 1"))
+
+  id=${res[0]}; date=${res[1]}; 
+  missruns=${res[2]};
+  rawdir=${res[3]}; bcpat=${res[4]}; 
+
+  # start browser the first time
+  newbrowser="y"
+
+  # for each missing run
+  # open mne_browse_raw and gedit
+  for r in $(sed 's/:/ /g' <<< $missruns); do
+    # the two files we care about are fif and bad.txt
+
+    # fif is either run[0-9]+ or {empty,rest}
+    fif=$(find -L $rawdir -iname "*_run${r}_*raw.fif" -or -iname "*_${r}*raw.fif" | sed 1q)
+    bcf=$(dirname $bcpat)/${proj}_${id}_${date}_${r}_badchannels.txt
+
+    [ -n "$newbrowser" ] && \
+      mne_browse_raw --raw $fif --highpass 1  --lowpass 100 & && (sleep 30; echo "\n\n\n[close gedit when done]\n") &
+
+    gedit $bcf &
+    pid=$!
+
+    echo " $proj $id $date $r "
+    echo "   $fif"
+    echo "   $bcf"
+    echo
+    echo " [close gedit when done with annotating bad channels]"
+
+    # update db when gedit is closed
+    wait $pid
+    updateOrAddDir $db $d
+
+    # prompt new choices
+    echo
+    echo "[n=new browser, enter continue, Ctrl+C to quit] "
+    echo -n "continue? "
+    newbrowser=$(read)
+  done
+  
 }
